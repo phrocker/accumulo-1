@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -83,12 +82,12 @@ public final class Compression {
    */
   public static enum Algorithm {
     LZO(COMPRESSION_LZO) {
-      private transient boolean checked = false;
+      private boolean checked = false;
       private static final String defaultClazz = "org.apache.hadoop.io.compress.LzoCodec";
-      private transient CompressionCodec codec = null;
+      private CompressionCodec codec = null;
 
       @Override
-      public synchronized boolean isSupported() {
+      public void initializeCodec() {
         if (!checked) {
           checked = true;
           String extClazz = (conf.get(CONF_LZO_CLASS) == null ? System.getProperty(CONF_LZO_CLASS) : null);
@@ -100,6 +99,10 @@ public final class Compression {
             // that is okay
           }
         }
+      }
+
+      @Override
+      public boolean isSupported() {
         return codec != null;
       }
 
@@ -148,27 +151,26 @@ public final class Compression {
     },
 
     GZ(COMPRESSION_GZ) {
-      private transient AtomicReference<DefaultCodec> codec = new AtomicReference<DefaultCodec>();
+
+      private final DefaultCodec codec = new DefaultCodec();
+
+      @Override
+      public void initializeCodec() {
+        codec.setConf(conf);
+      }
 
       @Override
       CompressionCodec getCodec() {
-        DefaultCodec resultCodec = codec.get();
-        if (null == resultCodec) {
-          DefaultCodec newCodec = new DefaultCodec();
-          newCodec.setConf(conf);
-          codec.compareAndSet(null, newCodec);
-        }
-
-        return codec.get();
+        return codec;
       }
 
       @Override
       public synchronized InputStream createDecompressionStream(InputStream downStream, Decompressor decompressor, int downStreamBufferSize) throws IOException {
         // Set the internal buffer size to read from down stream.
         if (downStreamBufferSize > 0) {
-          codec.get().getConf().setInt("io.file.buffer.size", downStreamBufferSize);
+          codec.getConf().setInt("io.file.buffer.size", downStreamBufferSize);
         }
-        CompressionInputStream cis = codec.get().createInputStream(downStream, decompressor);
+        CompressionInputStream cis = codec.createInputStream(downStream, decompressor);
         BufferedInputStream bis2 = new BufferedInputStream(cis, DATA_IBUF_SIZE);
         return bis2;
       }
@@ -181,8 +183,8 @@ public final class Compression {
         } else {
           bos1 = downStream;
         }
-        codec.get().getConf().setInt("io.file.buffer.size", 32 * 1024);
-        CompressionOutputStream cos = codec.get().createOutputStream(bos1, compressor);
+        codec.getConf().setInt("io.file.buffer.size", 32 * 1024);
+        CompressionOutputStream cos = codec.createOutputStream(bos1, compressor);
         BufferedOutputStream bos2 = new BufferedOutputStream(new FinishOnFlushCompressionStream(cos), DATA_OBUF_SIZE);
         return bos2;
       }
@@ -224,8 +226,8 @@ public final class Compression {
 
     SNAPPY(COMPRESSION_SNAPPY) {
       // Use base type to avoid compile-time dependencies.
-      private transient CompressionCodec snappyCodec = null;
-      private transient boolean checked = false;
+      private CompressionCodec snappyCodec = null;
+      private volatile boolean checked = false;
       private static final String defaultClazz = "org.apache.hadoop.io.compress.SnappyCodec";
 
       public CompressionCodec getCodec() throws IOException {
@@ -267,7 +269,7 @@ public final class Compression {
       }
 
       @Override
-      public synchronized boolean isSupported() {
+      public void initializeCodec() {
         if (!checked) {
           checked = true;
           String extClazz = (conf.get(CONF_SNAPPY_CLASS) == null ? System.getProperty(CONF_SNAPPY_CLASS) : null);
@@ -279,9 +281,14 @@ public final class Compression {
             // that is okay
           }
         }
+      }
+
+      @Override
+      public boolean isSupported() {
         return snappyCodec != null;
       }
     };
+
     // We require that all compression related settings are configured
     // statically in the Configuration object.
     protected static final Configuration conf = new Configuration();
@@ -293,11 +300,21 @@ public final class Compression {
     public static final String CONF_LZO_CLASS = "io.compression.codec.lzo.class";
     public static final String CONF_SNAPPY_CLASS = "io.compression.codec.snappy.class";
 
+    static {
+      // these are our only codecs, so let's initialize them.
+      // note that static blocks are guaranteed to be executed
+      GZ.initializeCodec();
+      LZO.initializeCodec();
+      SNAPPY.initializeCodec();
+    }
+
     Algorithm(String name) {
       this.compressName = name;
     }
 
     abstract CompressionCodec getCodec() throws IOException;
+
+    public void initializeCodec() {}
 
     public abstract InputStream createDecompressionStream(InputStream downStream, Decompressor decompressor, int downStreamBufferSize) throws IOException;
 

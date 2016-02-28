@@ -17,11 +17,14 @@
 package org.apache.accumulo.core.file.rfile.bcfile;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
 import org.apache.hadoop.io.compress.CompressionCodec;
@@ -29,19 +32,69 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 public class CompressionTest {
 
   @Test
-  public void testSingle() throws IOException {
-    Assert.assertNotNull(Compression.Algorithm.GZ.getCodec());
-
+  public void testSingleGZ() throws IOException {
     Assert.assertNotNull(Compression.Algorithm.GZ.getCodec());
   }
 
   @Test
-  public void testManyStartNotNull() throws IOException {
+  public void testSingleLZO() throws IOException {
+    if (Algorithm.LZO.isSupported())
+      Assert.assertNotNull(Compression.Algorithm.LZO.getCodec());
+  }
+
+  @Test
+  public void testSingleSnappy() throws IOException {
+    if (Algorithm.SNAPPY.isSupported())
+      Assert.assertNotNull(Algorithm.SNAPPY.getCodec());
+  }
+
+  // don't start until we have created the codec
+  @Test
+  public void testThereCanBeOnlyOneGZ() throws IOException, InterruptedException {
+
+    ExecutorService service = Executors.newFixedThreadPool(20);
+
+    List<Callable<Boolean>> list = Lists.newArrayList();
+
+    // keep track of the system's identity hashcodes.
+    final Set<Integer> testSet = Collections.synchronizedSet(new HashSet<Integer>());
+
+    for (int i = 0; i < 40; i++) {
+      list.add(new Callable<Boolean>() {
+
+        @Override
+        public Boolean call() throws Exception {
+          CompressionCodec codec = Compression.Algorithm.GZ.getCodec();
+          Assert.assertNotNull(codec);
+          // add the identity hashcode to the set.
+          testSet.add(System.identityHashCode(codec));
+          return true;
+        }
+      });
+    }
+
+    service.invokeAll(list);
+    service.shutdown();
+
+    try {
+      service.awaitTermination(1, TimeUnit.MINUTES);
+    } catch (InterruptedException e) {
+      Assert.fail("Unit test did not complete on time");
+    }
+    // ensure that we
+    for (Integer hash : testSet) {
+      System.out.println(" gz Missed " + hash);
+    }
+    Assert.assertEquals(1, testSet.size());
+
+  }
+
+  @Test
+  public void testManyStartNotNullGZ() throws IOException {
     final CompressionCodec codec = Algorithm.GZ.getCodec();
 
     ExecutorService service = Executors.newFixedThreadPool(10);
@@ -62,63 +115,102 @@ public class CompressionTest {
 
     service.shutdown();
 
+    try {
+      service.awaitTermination(1, TimeUnit.MINUTES);
+    } catch (InterruptedException e) {
+      Assert.fail("Unit test did not complete on time");
+    }
+
     Assert.assertNotNull(codec);
 
   }
 
-  // don't start until we have created the codec
+  // Create an LZO compressor test
   @Test
-  public void testManyDontStartUntilThread() throws IOException {
+  public void testThereCanBeOnlyOneLZO() throws IOException, InterruptedException {
 
-    ExecutorService service = Executors.newFixedThreadPool(10);
+    if (Algorithm.LZO.isSupported()) {
+      ExecutorService service = Executors.newFixedThreadPool(20);
 
-    for (int i = 0; i < 30; i++) {
+      List<Callable<Boolean>> list = Lists.newArrayList();
 
-      service.submit(new Callable<Boolean>() {
+      // keep track of the system's identity hashcodes.
+      final Set<Integer> testSet = Collections.synchronizedSet(new HashSet<Integer>());
 
-        @Override
-        public Boolean call() throws Exception {
-          Assert.assertNotNull(Compression.Algorithm.GZ.getCodec());
-          return true;
-        }
+      for (int i = 0; i < 40; i++) {
+        list.add(new Callable<Boolean>() {
 
-      });
+          @Override
+          public Boolean call() throws Exception {
+            CompressionCodec codec = Compression.Algorithm.LZO.getCodec();
+            Assert.assertNotNull(codec);
+            // add the identity hashcode to the set.
+            testSet.add(System.identityHashCode(codec));
+            return true;
+          }
+        });
+      }
+
+      service.invokeAll(list);
+      // ensure that we
+      // ensure that we
+      service.shutdown();
+
+      try {
+        service.awaitTermination(1, TimeUnit.MINUTES);
+      } catch (InterruptedException e) {
+        Assert.fail("Unit test did not complete on time");
+      }
+      for (Integer hash : testSet) {
+        System.out.println("Missed " + hash);
+      }
+      Assert.assertEquals(1, testSet.size());
+
     }
-
-    service.shutdown();
 
   }
 
-  // don't start until we have created the codec
+  // Create a snappy compression test
   @Test
-  public void testThereCanBeOnlyOne() throws IOException, InterruptedException {
+  public void testThereCanBeOnlyOneSnappy() throws IOException, InterruptedException {
 
-    ExecutorService service = Executors.newFixedThreadPool(20);
+    if (Algorithm.SNAPPY.isSupported()) {
+      ExecutorService service = Executors.newFixedThreadPool(20);
 
-    Collection<Callable<Boolean>> list = Lists.newArrayList();
+      List<Callable<Boolean>> list = Lists.newArrayList();
 
-    // keep track of the system's identity hashcodes.
-    final Set<Integer> testSet = Sets.newHashSet();
+      // keep track of the system's identity hashcodes.
 
-    for (int i = 0; i < 40; i++) {
-      list.add(new Callable<Boolean>() {
+      final Set<Integer> testSet = Collections.synchronizedSet(new HashSet<Integer>());
 
-        @Override
-        public Boolean call() throws Exception {
-          CompressionCodec codec = Compression.Algorithm.GZ.getCodec();
-          Assert.assertNotNull(codec);
-          // add the identity hashcode to the set.
-          testSet.add(System.identityHashCode(codec));
-          return true;
-        }
-      });
+      for (int i = 0; i < 40; i++) {
+        list.add(new Callable<Boolean>() {
+
+          @Override
+          public Boolean call() throws Exception {
+            CompressionCodec codec = Compression.Algorithm.SNAPPY.getCodec();
+            Assert.assertNotNull(codec);
+            // add the identity hashcode to the set.
+            testSet.add(System.identityHashCode(codec));
+            return true;
+          }
+        });
+      }
+
+      service.invokeAll(list);
+      service.shutdown();
+
+      try {
+        service.awaitTermination(1, TimeUnit.MINUTES);
+      } catch (InterruptedException e) {
+        Assert.fail("Unit test did not complete on time");
+      }
+      for (Integer hash : testSet) {
+        System.out.println("Missed snappy" + hash);
+      }
+      Assert.assertEquals(1, testSet.size());
+
     }
 
-    service.invokeAll(list);
-    // ensure that we
-    Assert.assertEquals(1, testSet.size());
-    service.shutdown();
-
   }
-
 }
