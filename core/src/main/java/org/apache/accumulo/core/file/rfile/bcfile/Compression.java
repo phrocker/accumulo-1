@@ -91,7 +91,10 @@ public final class Compression {
   public static enum Algorithm {
 
     LZO(COMPRESSION_LZO) {
-      private AtomicBoolean checked = new AtomicBoolean(false);
+      /**
+       * determines if we've checked the codec status. ensures we don't recreate the defualt codec
+       */
+      private transient AtomicBoolean checked = new AtomicBoolean(false);
       private static final String defaultClazz = "org.apache.hadoop.io.compress.LzoCodec";
       private transient CompressionCodec codec = null;
 
@@ -110,7 +113,7 @@ public final class Compression {
         return codec != null;
       }
 
-      public void createCodec() {
+      public void initializeDefaultCodec() {
         if (!checked.get()) {
           checked.set(true);
           codec = createNewCodec(DEFAULT_BUFFER_SIZE);
@@ -177,7 +180,7 @@ public final class Compression {
 
     GZ(COMPRESSION_GZ) {
 
-      private DefaultCodec codec = null;
+      private transient DefaultCodec codec = null;
 
       /**
        * Configuration option for gz buffer size
@@ -195,7 +198,7 @@ public final class Compression {
       }
 
       @Override
-      public void createCodec() {
+      public void initializeDefaultCodec() {
         codec = (DefaultCodec) createNewCodec(DEFAULT_BUFFER_SIZE);
       }
 
@@ -269,7 +272,7 @@ public final class Compression {
         return downStream;
       }
 
-      public void createCodec() {
+      public void initializeDefaultCodec() {
 
       }
 
@@ -295,7 +298,10 @@ public final class Compression {
     SNAPPY(COMPRESSION_SNAPPY) {
       // Use base type to avoid compile-time dependencies.
       private transient CompressionCodec snappyCodec = null;
-      private AtomicBoolean checked = new AtomicBoolean(false);
+      /**
+       * determines if we've checked the codec status. ensures we don't recreate the defualt codec
+       */
+      private transient AtomicBoolean checked = new AtomicBoolean(false);
       private static final String defaultClazz = "org.apache.hadoop.io.compress.SnappyCodec";
 
       /**
@@ -313,7 +319,7 @@ public final class Compression {
       }
 
       @Override
-      public void createCodec() {
+      public void initializeDefaultCodec() {
         if (!checked.get()) {
           checked.set(true);
           snappyCodec = createNewCodec(DEFAULT_BUFFER_SIZE);
@@ -396,13 +402,26 @@ public final class Compression {
       }
     };
 
+    /**
+     * The model defined by the static block, below, creates a singleton for each defined codec in the Algorithm enumeration. By creating the codecs, each call
+     * to isSupported shall return true/false depending on if the codec singleton is defined. The static initializer, below, will ensure this occurs when the
+     * Enumeration is loaded. Furthermore, calls to getCodec will return the singleton, whether it is null or not.
+     *
+     * Calls to createCompressionStream and createDecompressionStream may return a different codec than getCodec, if the incoming downStreamBufferSize is
+     * different than the default. In such a case, we will place the resulting codec into the codecCache, defined below, to ensure we have cache codecs.
+     *
+     * Since codecs are immutable, there is no concern about concurrent access to the CompressionCodec objects within the guava cache.
+     */
     static {
       conf = new Configuration();
       for (final Algorithm al : Algorithm.values()) {
-        al.createCodec();
+        al.initializeDefaultCodec();
       }
     }
 
+    /**
+     * Guava cache to have a limited factory pattern defined in the Algorithm enum.
+     */
     private static LoadingCache<Entry<Algorithm,Integer>,CompressionCodec> codecCache = CacheBuilder.newBuilder().maximumSize(25)
         .build(new CacheLoader<Entry<Algorithm,Integer>,CompressionCodec>() {
           public CompressionCodec load(Entry<Algorithm,Integer> key) {
@@ -428,10 +447,17 @@ public final class Compression {
     abstract CompressionCodec getCodec() throws IOException;
 
     /**
-     * function to create the codec
+     * function to create the default codec object.
      */
-    abstract void createCodec();
+    abstract void initializeDefaultCodec();
 
+    /**
+     * Shared function to create new codec objects. It is expected that if buffersize is invalid, a codec will be created with the default buffer size
+     * 
+     * @param bufferSize
+     *          configured buffer size.
+     * @return new codec
+     */
     abstract CompressionCodec createNewCodec(int bufferSize);
 
     public abstract InputStream createDecompressionStream(InputStream downStream, Decompressor decompressor, int downStreamBufferSize) throws IOException;
