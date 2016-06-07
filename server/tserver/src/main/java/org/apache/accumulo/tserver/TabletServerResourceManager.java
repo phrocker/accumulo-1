@@ -215,7 +215,7 @@ public class TabletServerResourceManager {
    *           This will occur if this prefix is used on a table that does not exist
    */
   private void createTablePools(final Instance instance, final AccumuloConfiguration acuConf) {
-    final HashMap<String, Integer> nonConfiguredTables = Maps.newHashMap();
+    final HashMap<String,Integer> nonConfiguredTables = Maps.newHashMap();
     for (Entry<String,String> entry : acuConf.getAllPropertiesWithPrefix(Property.TSERV_READ_AHEAD_PREFIX).entrySet()) {
       final String tableName = entry.getKey().substring(Property.TSERV_READ_AHEAD_PREFIX.getKey().length());
       if (null == entry.getValue() || entry.getValue().length() == 0) {
@@ -227,7 +227,6 @@ public class TabletServerResourceManager {
       final int maxThreads = Integer.valueOf(entry.getValue()).intValue();
       try {
 
-
         final String tableId = Tables.getTableId(instance, tableName);
 
         // create our executor and place it into tableThreadPools
@@ -235,18 +234,17 @@ public class TabletServerResourceManager {
           log.info("Creating table specific thread pool for " + tableName + " at a size of " + maxThreads);
         }
         // add references to the executor via the tableName and tableID
-        final ExecutorService service = createEs(maxThreads, Property.TSERV_READ_AHEAD_PREFIX, tableName, tableName + "specific read ahead", new LinkedBlockingQueue<Runnable>());
-        tableThreadPools.put(new Text(tableId),
-                service);
-        tableThreadPools.put(new Text(tableName),service);
+        final ExecutorService service = createEs(maxThreads, Property.TSERV_READ_AHEAD_PREFIX, tableName, tableName + "specific read ahead",
+            new LinkedBlockingQueue<Runnable>());
+        tableThreadPools.put(new Text(tableId), service);
+        tableThreadPools.put(new Text(tableName), service);
         if (log.isDebugEnabled()) {
           log.debug("Created " + tableName + " specific thread pool");
         }
-      }catch(TableNotFoundException tnf)
-      {
+      } catch (TableNotFoundException tnf) {
         if (log.isInfoEnabled())
           log.info(tableName + " was not found. Keeping track of it in case it is later added");
-        nonConfiguredTables.put(tableName,maxThreads);
+        nonConfiguredTables.put(tableName, maxThreads);
       }
     }
     /**
@@ -257,15 +255,13 @@ public class TabletServerResourceManager {
         @Override
         public void run() {
 
-          createTablePools(instance,acuConf);
+          createTablePools(instance, acuConf);
 
         }
       }, 5000, 60 * 1000);
     }
 
   }
-
-
 
   public TabletServerResourceManager(Instance instance, VolumeManager fs) {
     this.conf = new ServerConfiguration(instance);

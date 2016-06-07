@@ -65,13 +65,11 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
 
     Map<String,String> siteConfig = new HashMap<String,String>();
 
-
-
-      for(int i=0 ; i < 2; i++){
-        siteConfig.put(Property.TSERV_READ_AHEAD_PREFIX.getKey() + tableNames[i], "5");
-      }
-      siteConfig.put(Property.TSERV_READ_AHEAD_MAXCONCURRENT.getKey(), "1");
-      cfg.setSiteConfig(siteConfig);
+    for (int i = 0; i < 2; i++) {
+      siteConfig.put(Property.TSERV_READ_AHEAD_PREFIX.getKey() + tableNames[i], "5");
+    }
+    siteConfig.put(Property.TSERV_READ_AHEAD_MAXCONCURRENT.getKey(), "1");
+    cfg.setSiteConfig(siteConfig);
 
   }
 
@@ -80,8 +78,6 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
     for (String table : tableNames) {
       getConnector().tableOperations().delete(table);
     }
-
-
 
   }
 
@@ -137,10 +133,10 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
     scanTable(c, table2);
   }
 
-  @Test(timeout=120*1000)
+  @Test(timeout = 120 * 1000)
   public void scanEnsureUsingThreadPool() throws Exception {
 
-// pre-create our tables
+    // pre-create our tables
     for (String table : tableNames) {
       getConnector().tableOperations().create(table);
     }
@@ -149,7 +145,6 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
     int splits = 3;
     for (int i = (ROW_LIMIT / splits); i < ROW_LIMIT; i += (ROW_LIMIT / splits))
       splitRows.add(createRow(i));
-
 
     final Connector c = getConnector();
     final String tableToBackUp = tableNames[2];
@@ -163,31 +158,29 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
     ArrayList<Future<Boolean>> results = Lists.newArrayList();
     final AtomicInteger finished = new AtomicInteger(0);
 
-
-
     for (int i = 0; i < 2; i++) {
       results.add(service.submit(new Callable<Boolean>() {
 
-                                   @Override
-                                   public Boolean call() throws Exception {
-                                     BatchScanner scanner = c.createBatchScanner(tableToBackUp, Authorizations.EMPTY,1);
-                                     IteratorSetting setting = new IteratorSetting(1,SlowIterator.class);
-                                     SlowIterator.setSeekSleepTime(setting,Long.MAX_VALUE);
-                                     SlowIterator.setSleepTime(setting,Long.MAX_VALUE);
-                                     scanner.addScanIterator(setting);
-                                     scanner.setRanges(Collections.singleton(new Range()));
-                                     try {
-                                       for (Entry<Key, Value> entry : scanner) {
-
-                                       }
-                                     }finally{
-                                       scanner.close();
-                                     }
-                                     finished.incrementAndGet();
-                                     return true;
-                                   }
-                                 }
-      ));
+        @Override
+        public Boolean call() throws Exception {
+          BatchScanner scanner = c.createBatchScanner(tableToBackUp, Authorizations.EMPTY, 1);
+          IteratorSetting setting = new IteratorSetting(1, SlowIterator.class);
+          SlowIterator.setSeekSleepTime(setting, 30);
+          SlowIterator.setSleepTime(setting, 30);
+          scanner.addScanIterator(setting);
+          scanner.setRanges(Collections.singleton(new Range()));
+          try {
+            for (Entry<Key,Value> entry : scanner) {
+              // don't really need to do anything
+              
+            }
+          } finally {
+            scanner.close();
+          }
+          finished.incrementAndGet();
+          return true;
+        }
+      }));
     }
     // let the thread pool tables be configured.
     UtilWaitThread.sleep(5 * 1000);
@@ -202,20 +195,16 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
 
     insertData(c, table2);
     scanTable(c, table2);
-    Assert.assertEquals(finished.get(),0);
+    Assert.assertEquals(finished.get(), 0);
     service.shutdown();
-    for(Future<Boolean> future : results)
-    {
+    for (Future<Boolean> future : results) {
       future.cancel(true);
     }
     while (!service.awaitTermination(1, TimeUnit.SECONDS)) {
-                // wait
-                      }
+      // wait
+    }
 
   }
-
-
-
 
   private void scanTable(Connector c, String table) throws Exception {
     scanRange(c, table, new IntKey(0, 0, 0, 0), new IntKey(1, 0, 0, 0));
@@ -247,8 +236,6 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
     }
 
   }
-
-
 
   private static class IntKey {
     private int row;

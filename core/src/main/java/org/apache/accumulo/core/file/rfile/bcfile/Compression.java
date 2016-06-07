@@ -294,7 +294,7 @@ public final class Compression {
       this.compressName = name;
     }
 
-    abstract CompressionCodec getCodec() throws IOException;
+    abstract CompressionCodec getCodec();
 
     public abstract InputStream createDecompressionStream(InputStream downStream, Decompressor decompressor, int downStreamBufferSize) throws IOException;
 
