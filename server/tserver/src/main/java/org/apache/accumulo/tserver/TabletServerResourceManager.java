@@ -236,6 +236,10 @@ public class TabletServerResourceManager {
         // add references to the executor via the tableName and tableID
         final ExecutorService service = createEs(maxThreads, Property.TSERV_READ_AHEAD_PREFIX, tableName, tableName + "specific read ahead",
             new LinkedBlockingQueue<Runnable>());
+        /**
+         * We're placing the table ID and the table name into the map as the cost will be negligible and we get the benefit of not having to call
+         * Tables.getTableId above when we check if the executor already exists
+         */
         tableThreadPools.put(new Text(tableId), service);
         tableThreadPools.put(new Text(tableName), service);
         if (log.isDebugEnabled()) {
@@ -258,7 +262,7 @@ public class TabletServerResourceManager {
           createTablePools(instance, acuConf);
 
         }
-      }, 5000, 60 * 1000);
+      }, 10 * 1000, 60 * 1000);
     }
 
   }
