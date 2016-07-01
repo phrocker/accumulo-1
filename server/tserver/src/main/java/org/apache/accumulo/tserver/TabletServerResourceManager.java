@@ -149,6 +149,120 @@ public class TabletServerResourceManager {
     return addEs(name, new ThreadPoolExecutor(min, max, timeout, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamingThreadFactory(name)));
   }
 
+  private ExecutorService createEs(int maxThreads, Property prefix, String tableName, String name, BlockingQueue<Runnable> queue) {
+    final ThreadPoolExecutor tp = new ThreadPoolExecutor(maxThreads, maxThreads, 0L, TimeUnit.MILLISECONDS, queue, new NamingThreadFactory(name));
+    return addEs(maxThreads, prefix, tableName, name, tp);
+  }
+
+  /**
+   * Creates an executor service based on a prefix.
+   *
+   * @param maxThreads
+   *          maximum threads
+   * @param prefix
+   *          property prefix
+   * @param tableName
+   *          incoming table name
+   * @param name
+   *          Name of executor
+   * @param tp
+   *          thread pool executor
+   * @return executor that we will be returning
+   */
+  private ExecutorService addEs(final int maxThreads, final Property prefix, final String tableName, final String name, final ThreadPoolExecutor tp) {
+    ExecutorService result = addEs(name, tp);
+    SimpleTimer.getInstance().schedule(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          int max = maxThreads;
+          for (Entry<String,String> entry : conf.getConfiguration().getAllPropertiesWithPrefix(prefix).entrySet()) {
+            if (entry.getKey().endsWith(tableName)) {
+              if (null != entry.getValue() && entry.getValue().length() != 0) {
+                max = Integer.valueOf(entry.getValue()).intValue();
+                break;
+              }
+            }
+          }
+
+          if (tp.getMaximumPoolSize() != max) {
+            log.info("Changing table specific thread pool for " + tableName + " to " + max);
+            tp.setCorePoolSize(max);
+            tp.setMaximumPoolSize(max);
+          }
+
+        } catch (Throwable t) {
+          log.error(t, t);
+        }
+      }
+
+    }, 1000, 10 * 1000);
+    return result;
+  }
+
+  /**
+   * Creates table specific thread pools for executing scan threads.
+   *
+   * @param instance
+   *          incoming instance object
+   * @param acuConf
+   *          accumulo configuration
+   * @throws TableNotFoundException
+   *           This will occur if this prefix is used on a table that does not exist
+   */
+  private void createTablePools(final Instance instance, final AccumuloConfiguration acuConf) {
+    final HashMap<String,Integer> nonConfiguredTables = Maps.newHashMap();
+    for (Entry<String,String> entry : acuConf.getAllPropertiesWithPrefix(Property.TSERV_READ_AHEAD_PREFIX).entrySet()) {
+      final String tableName = entry.getKey().substring(Property.TSERV_READ_AHEAD_PREFIX.getKey().length());
+      if (null == entry.getValue() || entry.getValue().length() == 0) {
+        throw new RuntimeException("Read ahead prefix is inproperly configured");
+      }
+
+      if (tableThreadPools.containsKey(new Text(tableName)))
+        continue;
+      final int maxThreads = Integer.valueOf(entry.getValue()).intValue();
+      try {
+
+        final String tableId = Tables.getTableId(instance, tableName);
+
+        // create our executor and place it into tableThreadPools
+        if (log.isInfoEnabled()) {
+          log.info("Creating table specific thread pool for " + tableName + " at a size of " + maxThreads);
+        }
+        // add references to the executor via the tableName and tableID
+        final ExecutorService service = createEs(maxThreads, Property.TSERV_READ_AHEAD_PREFIX, tableName, tableName + "specific read ahead",
+            new LinkedBlockingQueue<Runnable>());
+        /**
+         * We're placing the table ID and the table name into the map as the cost will be negligible and we get the benefit of not having to call
+         * Tables.getTableId above when we check if the executor already exists
+         */
+        tableThreadPools.put(new Text(tableId), service);
+        tableThreadPools.put(new Text(tableName), service);
+        if (log.isDebugEnabled()) {
+          log.debug("Created " + tableName + " specific thread pool");
+        }
+      } catch (TableNotFoundException tnf) {
+        if (log.isInfoEnabled())
+          log.info(tableName + " was not found. Keeping track of it in case it is later added");
+        nonConfiguredTables.put(tableName, maxThreads);
+      }
+    }
+    /**
+     * Check to see if nonConfiguredTables needs to be re-evaluated.
+     */
+    if (nonConfiguredTables.size() > 0) {
+      SimpleTimer.getInstance().schedule(new Runnable() {
+        @Override
+        public void run() {
+
+          createTablePools(instance, acuConf);
+
+        }
+      }, 10 * 1000, 60 * 1000);
+    }
+
+  }
+
   public TabletServerResourceManager(TabletServer tserver, VolumeManager fs) {
     this.tserver = tserver;
     this.conf = tserver.getServerConfigurationFactory();
