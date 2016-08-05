@@ -97,6 +97,7 @@ import org.apache.accumulo.core.data.thrift.TKeyValue;
 import org.apache.accumulo.core.data.thrift.TMutation;
 import org.apache.accumulo.core.data.thrift.TRange;
 import org.apache.accumulo.core.data.thrift.UpdateErrors;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressionUpdater;
 import org.apache.accumulo.core.iterators.IterationInterruptedException;
 import org.apache.accumulo.core.master.thrift.Compacting;
 import org.apache.accumulo.core.master.thrift.MasterClientService;
@@ -2486,6 +2487,8 @@ public class TabletServer extends AccumuloServerContext implements Runnable {
       }
     };
     SimpleTimer.getInstance(aconf).schedule(replicationWorkThreadPoolResizer, 10000, 30000);
+
+    SimpleTimer.getInstance(aconf).schedule(new CompressionUpdater(aconf), 10000, 30000);
 
     HostAndPort masterHost;
     while (!serverStopRequested) {
