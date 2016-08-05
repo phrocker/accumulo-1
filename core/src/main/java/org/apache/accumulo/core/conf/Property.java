@@ -349,7 +349,18 @@ public enum Property {
       "Memory to provide to batchwriter to replay mutations for replication"),
   TSERV_ASSIGNMENT_MAXCONCURRENT("tserver.assignment.concurrent.max", "2", PropertyType.COUNT,
       "The number of threads available to load tablets. Recoveries are still performed serially."),
-
+  TSERV_COMPRESSOR_FACTORY("tserver.compressor.factory.class", "org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory", PropertyType.CLASSNAME,
+      "Tablet Server configuration for the compressor factory that will be used when requesting compressors."),
+  TSERV_COMPRESSOR_IN_BUFFER("tserver.compressor.factory.input.buffer.size", "1K", PropertyType.MEMORY,
+      "Tablet Server configuration for the compressor factory that adjusts the input buffer size. Zero uses the full compression block size."),
+  TSERV_COMPRESSOR_OUT_BUFFER("tserver.compressor.factory.output.buffer.size", "1K", PropertyType.MEMORY,
+      "Tablet Server configuration for the compressor factory that adjusts the output buffer size. Default uses the full compression block size."),
+  TSERV_COMPRESSOR_POOL_IDLE("tserver.compressor.pool.max.idle", "25", PropertyType.COUNT,
+      "Tablet Server configuration to contrain the maximum number of idle compressors within the pool"),
+  TSERV_COMPRESSOR_POOL_IDLE_SWEEP_TIME("tserver.compressor.pool.max.idle.sweep.time", "0ms", PropertyType.TIMEDURATION,
+      "Tablet Server configuration for max idle time between idle object sweeps. Does not run if set to 0."),
+  TSERV_COMPRESSOR_POOL_IDLE_STORE_TIME("tserver.compressor.pool.max.idle.time", "0ms", PropertyType.TIMEDURATION,
+      "Tablet Server configuration for max amount of time an idle (de)compressor will be stored. Does not get evicted if > 0"),
   // properties that are specific to logger server behavior
   LOGGER_PREFIX("logger.", null, PropertyType.PREFIX, "Properties in this category affect the behavior of the write-ahead logger servers"),
   LOGGER_DIR("logger.dir.walog", "walogs", PropertyType.PATH, "This property is only needed if Accumulo was upgraded from a 1.4 or earlier version. "
