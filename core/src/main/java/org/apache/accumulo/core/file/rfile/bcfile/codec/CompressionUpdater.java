@@ -16,8 +16,6 @@
  */
 package org.apache.accumulo.core.file.rfile.bcfile.codec;
 
-import jline.internal.Log;
-
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression;
@@ -56,7 +54,7 @@ public class CompressionUpdater implements Runnable {
       try {
         tempFactory = Class.forName(compressorClass).asSubclass(CompressorFactory.class);
       } catch (ClassNotFoundException cfe) {
-        Log.warn("Could not find class " + compressorClass + " so not setting desired CompressorFactory");
+        LOG.warn("Could not find class " + compressorClass + " so not setting desired CompressorFactory");
         // do nothing
         return;
       }

@@ -92,8 +92,6 @@ public class CompressorFactory {
    * @param compressionAlgorithm
    *          decompressor's algorithm.
    * @return decompressor.
-   * @throws IOException
-   *           I/O Exception during factory implementation
    */
   public Decompressor getDecompressor(Algorithm compressionAlgorithm) {
     if (compressionAlgorithm != null) {

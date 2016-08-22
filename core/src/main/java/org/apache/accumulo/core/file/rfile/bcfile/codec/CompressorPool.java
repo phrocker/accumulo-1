@@ -197,7 +197,7 @@ public class CompressorPool extends CompressorFactory {
   }
 
   /**
-   * Sets the idle sweep time if > 0.
+   * Sets the idle sweep time if &gt; 0.
    *
    * @param idleSweepTimeMs
    *          idle sweep time.
