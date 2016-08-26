@@ -28,6 +28,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -35,6 +36,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.accumulo.core.client.Instance;
+import org.apache.accumulo.core.client.TableNotFoundException;
+import org.apache.accumulo.core.client.impl.Tables;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.impl.KeyExtent;
@@ -59,6 +63,7 @@ import org.apache.accumulo.tserver.compaction.DefaultCompactionStrategy;
 import org.apache.accumulo.tserver.compaction.MajorCompactionReason;
 import org.apache.accumulo.tserver.compaction.MajorCompactionRequest;
 import org.apache.accumulo.tserver.tablet.Tablet;
+import org.apache.hadoop.io.Text;
 import org.apache.htrace.wrappers.TraceExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,7 +89,15 @@ public class TabletServerResourceManager {
   private final ExecutorService assignMetaDataPool;
   private final ExecutorService readAheadThreadPool;
   private final ExecutorService defaultReadAheadThreadPool;
+  /**
+   * Keeping thread pools as it's used for accounting purposes.
+   */
   private final Map<String,ExecutorService> threadPools = new TreeMap<String,ExecutorService>();
+  /**
+   * We're not removing the threadPools object above since it's used for accounting Note we'll only ever mutate this from a single thread at startup. This this
+   * paradigm is changed ( such as in the scheduled task ), we'd need control over this map
+   */
+  private ConcurrentMap<Text,ExecutorService> tableThreadPools = new ConcurrentHashMap<>();
 
   private final ConcurrentHashMap<KeyExtent,RunnableStartedAt> activeAssignments;
 
@@ -171,7 +184,7 @@ public class TabletServerResourceManager {
    */
   private ExecutorService addEs(final int maxThreads, final Property prefix, final String tableName, final String name, final ThreadPoolExecutor tp) {
     ExecutorService result = addEs(name, tp);
-    SimpleTimer.getInstance().schedule(new Runnable() {
+    SimpleTimer.getInstance(conf.getConfiguration()).schedule(new Runnable() {
       @Override
       public void run() {
         try {
@@ -179,7 +192,8 @@ public class TabletServerResourceManager {
           for (Entry<String,String> entry : conf.getConfiguration().getAllPropertiesWithPrefix(prefix).entrySet()) {
             if (entry.getKey().endsWith(tableName)) {
               if (null != entry.getValue() && entry.getValue().length() != 0) {
-                max = Integer.valueOf(entry.getValue()).intValue();
+                Integer boxedValue = Integer.valueOf(entry.getValue());
+                max = boxedValue.intValue();
                 break;
               }
             }
@@ -192,7 +206,7 @@ public class TabletServerResourceManager {
           }
 
         } catch (Throwable t) {
-          log.error(t, t);
+          log.error("Error while adjusting threadPools", t);
         }
       }
 
@@ -211,7 +225,7 @@ public class TabletServerResourceManager {
    *           This will occur if this prefix is used on a table that does not exist
    */
   private void createTablePools(final Instance instance, final AccumuloConfiguration acuConf) {
-    final HashMap<String,Integer> nonConfiguredTables = Maps.newHashMap();
+    final HashMap<String,Integer> nonConfiguredTables = new HashMap<>();
     for (Entry<String,String> entry : acuConf.getAllPropertiesWithPrefix(Property.TSERV_READ_AHEAD_PREFIX).entrySet()) {
       final String tableName = entry.getKey().substring(Property.TSERV_READ_AHEAD_PREFIX.getKey().length());
       if (null == entry.getValue() || entry.getValue().length() == 0) {
@@ -220,7 +234,8 @@ public class TabletServerResourceManager {
 
       if (tableThreadPools.containsKey(new Text(tableName)))
         continue;
-      final int maxThreads = Integer.valueOf(entry.getValue()).intValue();
+      final Integer boxedValue = Integer.valueOf(entry.getValue());
+      final int maxThreads = boxedValue.intValue();
       try {
 
         final String tableId = Tables.getTableId(instance, tableName);
@@ -251,7 +266,7 @@ public class TabletServerResourceManager {
      * Check to see if nonConfiguredTables needs to be re-evaluated.
      */
     if (nonConfiguredTables.size() > 0) {
-      SimpleTimer.getInstance().schedule(new Runnable() {
+      SimpleTimer.getInstance(conf.getConfiguration()).schedule(new Runnable() {
         @Override
         public void run() {
 

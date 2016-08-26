@@ -16,8 +16,6 @@
  */
 package org.apache.accumulo.test.functional;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,8 +55,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.Lists;
-
 public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
 
   private String[] tableNames = null;
@@ -93,7 +89,8 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
   @Before
   public void beforeOps() throws Exception {
     InstanceOperations ops = getConnector().instanceOperations();
-    defaultReadAhead = Integer.valueOf(ops.getSystemConfiguration().get(Property.TSERV_READ_AHEAD_MAXCONCURRENT.getKey()));
+    Integer boxer = Integer.valueOf(ops.getSystemConfiguration().get(Property.TSERV_READ_AHEAD_MAXCONCURRENT.getKey()));
+    defaultReadAhead = boxer.intValue();
   }
 
   @After
@@ -101,8 +98,8 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
     for (String table : tableNames) {
       getConnector().tableOperations().delete(table);
     }
-
-    getConnector().instanceOperations().setProperty(Property.TSERV_READ_AHEAD_MAXCONCURRENT.getKey(), Integer.valueOf(defaultReadAhead).toString());
+    String readheadStr = String.valueOf(defaultReadAhead);
+    getConnector().instanceOperations().setProperty(Property.TSERV_READ_AHEAD_MAXCONCURRENT.getKey(), readheadStr);
 
   }
 
@@ -180,7 +177,7 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
     scanTable(c, tableToBackUp);
     // we've configured the default thread pool to have one thread. so let's back up a few.
     ExecutorService service = Executors.newFixedThreadPool(4);
-    ArrayList<Future<Boolean>> results = Lists.newArrayList();
+    ArrayList<Future<Boolean>> results = new ArrayList<>();
     final AtomicInteger started = new AtomicInteger(0);
     final AtomicInteger finished = new AtomicInteger(0);
     // let the thread pool tables be configured.
@@ -401,7 +398,7 @@ public class ScanRangeTableSpecificIT extends AccumuloClusterIT {
       for (int j = 0; j < CF_LIMIT; j++) {
         for (int k = 0; k < CQ_LIMIT; k++) {
           for (int t = 0; t < TS_LIMIT; t++) {
-            m.put(createCF(j), createCQ(k), t, new Value(String.format("%06d_%03d_%03d_%03d", i, j, k, t).getBytes(UTF_8)));
+            m.put(createCF(j), createCQ(k), t, new Value(String.format("%06d_%03d_%03d_%03d", i, j, k, t).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
           }
         }
       }
