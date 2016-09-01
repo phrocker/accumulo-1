@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory;
 import org.apache.commons.logging.Log;
@@ -512,31 +513,68 @@ public final class Compression {
 
     public abstract boolean isSupported();
 
+    /**
+     * Requests a compressor from the current compressor factory.
+     * 
+     * @return new compressor.
+     * @throws IOException
+     *           Exception occurred within the method to obtain a compressor.
+     */
     public Compressor getCompressor() throws IOException {
-      return compressorFactory.getCompressor(this);
+      return compressorFactory.get().getCompressor(this);
     }
 
-    public void returnCompressor(Compressor compressor) {
-      compressorFactory.releaseCompressor(this, compressor);
+    /**
+     * Returns the compressor. The call to releaseCompressor will return a status of whether or not the factory could close or return the compressor. If that
+     * status is false, we will manually call end on the compressor.
+     * 
+     * @param compressor
+     *          compressor to return.
+     */
+    public void returnCompressor(final Compressor compressor) {
+      if (!compressorFactory.get().releaseCompressor(this, compressor)) {
+        compressor.end();
+      }
     }
 
+    /**
+     * Requests a decompressor from the current compressor factory.
+     * 
+     * @return new de compressor.
+     * @throws IOException
+     *           Exception occurred within the method to obtain a decompressor.
+     */
     public Decompressor getDecompressor() throws IOException {
-      return compressorFactory.getDecompressor(this);
+      return compressorFactory.get().getDecompressor(this);
     }
 
+    /**
+     * Returns the de compressor. The call to releaseDeCompressor will return a status of whether or not the factory could close or return the decompressor. If
+     * that status is false, we will manually call end on the decompressor.
+     * 
+     * @param decompressor
+     *          decompressor to return.
+     */
     public void returnDecompressor(Decompressor decompressor) {
-      compressorFactory.releaseDecompressor(this, decompressor);
+      if (!compressorFactory.get().releaseDecompressor(this, decompressor)) {
+        decompressor.end();
+      }
     }
 
+    /**
+     * Getter for the compressor name.
+     * 
+     * @return compressor name.
+     */
     public String getName() {
       return compressName;
     }
   }
 
   /**
-   * Default implementation will create new compressors.
+   * Default implementation will create new compressors. 
    */
-  private static CompressorFactory compressorFactory = new CompressorFactory(null);
+  private static AtomicReference<CompressorFactory> compressorFactory = new AtomicReference<>(new CompressorFactory(null));
 
   /**
    * Allow the compressor factory to be set within this Instance.
@@ -544,13 +582,13 @@ public final class Compression {
    * @param compFactory
    *          incoming compressor factory to be used by all Algorithms
    */
-  public static synchronized void setCompressionFactory(final CompressorFactory compFactory) {
+  public static void setCompressionFactory(final CompressorFactory compFactory) {
     Preconditions.checkNotNull(compFactory, "Compressor Factory cannot be null");
-    if (null != compressorFactory) {
-      compressorFactory.close();
+    if (null != compressorFactory.get()) {
+      compressorFactory.get().close();
     }
 
-    compressorFactory = compFactory;
+    compressorFactory.set(compFactory);
   }
 
   /**

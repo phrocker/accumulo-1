@@ -22,7 +22,8 @@ import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
 import org.apache.hadoop.io.compress.Compressor;
 import org.apache.hadoop.io.compress.Decompressor;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 
@@ -32,7 +33,7 @@ import com.google.common.base.Preconditions;
  */
 public class CompressorFactory {
 
-  private static final Logger LOG = Logger.getLogger(CompressorFactory.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CompressorFactory.class);
 
   public CompressorFactory(AccumuloConfiguration acuConf) {}
 
@@ -50,7 +51,7 @@ public class CompressorFactory {
       Compressor compressor = compressionAlgorithm.getCodec().createCompressor();
       if (compressor != null) {
 
-        LOG.debug("Got a decompressor: " + compressor.hashCode());
+        LOG.debug("Got a decompressor: {}", compressor.hashCode());
 
       }
       return compressor;
@@ -60,16 +61,19 @@ public class CompressorFactory {
 
   /**
    * Method to release a compressor. This implementation will call end on the compressor.
+   * 
+   * Implementations that 
    *
    * @param algorithm
    *          Supplied compressor's Algorithm.
    * @param compressor
    *          Compressor object
    */
-  public void releaseCompressor(Algorithm algorithm, Compressor compressor) {
+  public boolean releaseCompressor(Algorithm algorithm, Compressor compressor) {
     Preconditions.checkNotNull(algorithm, "Algorithm cannot be null");
     Preconditions.checkNotNull(compressor, "Compressor should not be null");
     compressor.end();
+    return true;
   }
 
   /**
@@ -80,10 +84,11 @@ public class CompressorFactory {
    * @param decompressor
    *          decompressor object.
    */
-  public void releaseDecompressor(Algorithm algorithm, Decompressor decompressor) {
+  public boolean releaseDecompressor(Algorithm algorithm, Decompressor decompressor) {
     Preconditions.checkNotNull(algorithm, "Algorithm cannot be null");
     Preconditions.checkNotNull(decompressor, "Deompressor should not be null");
     decompressor.end();
+    return true;
   }
 
   /**
@@ -98,7 +103,7 @@ public class CompressorFactory {
       Decompressor decompressor = compressionAlgorithm.getCodec().createDecompressor();
       if (decompressor != null) {
 
-        LOG.debug("Got a decompressor: " + decompressor.hashCode());
+        LOG.debug("Got a decompressor: {}", decompressor.hashCode());
 
       }
       return decompressor;

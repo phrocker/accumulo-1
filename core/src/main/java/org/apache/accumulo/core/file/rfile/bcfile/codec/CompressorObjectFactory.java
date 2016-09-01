@@ -17,38 +17,40 @@
 package org.apache.accumulo.core.file.rfile.bcfile.codec;
 
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
-import org.apache.commons.pool.KeyedPoolableObjectFactory;
+import org.apache.commons.pool2.KeyedPooledObjectFactory;
+import org.apache.commons.pool2.PooledObject;
+import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.apache.hadoop.io.compress.Compressor;
 
 /**
  * Factory pattern used to create compressors within CompressorPool
  *
  */
-public class CompressorObjectFactory implements KeyedPoolableObjectFactory<Algorithm,Compressor> {
+public class CompressorObjectFactory implements KeyedPooledObjectFactory<Algorithm,Compressor> {
 
   @Override
-  public Compressor makeObject(Algorithm key) throws Exception {
-    return key.getCodec().createCompressor();
+  public PooledObject<Compressor> makeObject(Algorithm key) throws Exception {
+    return new DefaultPooledObject<Compressor>(key.getCodec().createCompressor());
   }
 
   @Override
-  public void destroyObject(Algorithm key, Compressor compressor) throws Exception {
-    compressor.end();
+  public void destroyObject(Algorithm key, PooledObject<Compressor> compressor) throws Exception {
+    compressor.getObject().end();
   }
 
   @Override
-  public boolean validateObject(Algorithm key, Compressor compressor) {
-    return compressor.finished();
+  public boolean validateObject(Algorithm key, PooledObject<Compressor> compressor) {
+    return compressor.getObject().finished();
   }
 
   @Override
-  public void activateObject(Algorithm key, Compressor compressor) throws Exception {
-    compressor.reset();
+  public void activateObject(Algorithm key, PooledObject<Compressor> compressor) throws Exception {
+    compressor.getObject().reset();
   }
 
   @Override
-  public void passivateObject(Algorithm key, Compressor compressor) throws Exception {
-    compressor.finish();
+  public void passivateObject(Algorithm key, PooledObject<Compressor> compressor) throws Exception {
+    compressor.getObject().finish();
   }
 
 }

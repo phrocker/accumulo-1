@@ -21,10 +21,11 @@ import java.io.IOException;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
-import org.apache.commons.pool.impl.GenericKeyedObjectPool;
+import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.apache.hadoop.io.compress.Compressor;
 import org.apache.hadoop.io.compress.Decompressor;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 
@@ -35,7 +36,7 @@ import com.google.common.base.Preconditions;
  */
 public class CompressorPool extends CompressorFactory {
 
-  private static final Logger LOG = Logger.getLogger(CompressorObjectFactory.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CompressorObjectFactory.class);
 
   /**
    * Compressor pool.
@@ -53,11 +54,11 @@ public class CompressorPool extends CompressorFactory {
 
     compressorPool = new GenericKeyedObjectPool<Algorithm,Compressor>(new CompressorObjectFactory());
     // ensure that the pool grows when needed
-    compressorPool.setWhenExhaustedAction(GenericKeyedObjectPool.WHEN_EXHAUSTED_GROW);
+    compressorPool.setBlockWhenExhausted(false);
 
     decompressorPool = new GenericKeyedObjectPool<Algorithm,Decompressor>(new DecompressorObjectFactory());
     // ensure that the pool grows when needed.
-    decompressorPool.setWhenExhaustedAction(GenericKeyedObjectPool.WHEN_EXHAUSTED_GROW);
+    decompressorPool.setBlockWhenExhausted(false);
 
     // perform the initial update.
     update(acuConf);
@@ -67,10 +68,10 @@ public class CompressorPool extends CompressorFactory {
   public void setMaxIdle(final int size) {
     // check that we are changing the value.
     // this will avoid synchronization within the pool
-    if (size != compressorPool.getMaxIdle())
-      compressorPool.setMaxIdle(size);
-    if (size != decompressorPool.getMaxIdle())
-      decompressorPool.setMaxIdle(size);
+    if (size != compressorPool.getMaxIdlePerKey())
+      compressorPool.setMaxIdlePerKey(size);
+    if (size != decompressorPool.getMaxIdlePerKey())
+      decompressorPool.setMaxIdlePerKey(size);
   }
 
   @Override
@@ -80,36 +81,39 @@ public class CompressorPool extends CompressorFactory {
       return compressorPool.borrowObject(compressionAlgorithm);
     } catch (Exception e) {
       // could not borrow the object, therefore we will attempt to create it
-      // this will most likely result in an exception when returning so an end will occur
-      LOG.warn("Could not borrow compressor; creating instead", e);
+      // this will most likely result in an exception when returning,
+      // so end will be called instead
+      LOG.warn("Could not borrow compressor; creating instead. Error message {}", e.getMessage(), e);
       return compressionAlgorithm.getCodec().createCompressor();
     }
   }
 
   @Override
-  public void releaseCompressor(Algorithm compressionAlgorithm, Compressor compressor) {
+  public boolean releaseCompressor(Algorithm compressionAlgorithm, Compressor compressor) {
     Preconditions.checkNotNull(compressionAlgorithm, "Algorithm cannot be null");
     Preconditions.checkNotNull(compressor, "Compressor should not be null");
     try {
       compressorPool.returnObject(compressionAlgorithm, compressor);
+      return true;
     } catch (Exception e) {
-      LOG.warn("Could not return compressor; closing instead", e);
-      // compressor failed to be returned. Let's free the memory associated with it
+      LOG.warn("Could not return compressor. Closing instead. Error message {}", e.getMessage(), e);
       compressor.end();
+      return true;
     }
 
   }
 
   @Override
-  public void releaseDecompressor(Algorithm compressionAlgorithm, Decompressor decompressor) {
+  public boolean releaseDecompressor(Algorithm compressionAlgorithm, Decompressor decompressor) {
     Preconditions.checkNotNull(compressionAlgorithm, "Algorithm cannot be null");
     Preconditions.checkNotNull(decompressor, "Deompressor should not be null");
     try {
       decompressorPool.returnObject(compressionAlgorithm, decompressor);
+      return true;
     } catch (Exception e) {
-      LOG.warn("Could not return decompressor; closing instead", e);
-      // compressor failed to be returned. Let's free the memory associated with it
+      LOG.warn("Could not return decompressor. Closing instead. Error message {}",e.getMessage(), e);
       decompressor.end();
+      return true;
     }
 
   }
@@ -120,7 +124,7 @@ public class CompressorPool extends CompressorFactory {
     try {
       return decompressorPool.borrowObject(compressionAlgorithm);
     } catch (Exception e) {
-      LOG.warn("Could not borrow decompressor; creating instead", e);
+      LOG.warn("Could not borrow decompressor; creating instead. Error message {}", e.getMessage(), e);
       // could not borrow the object, therefore we will attempt to create it
       // this will most likely result in an exception when returning so an end will occur
       return compressionAlgorithm.getCodec().createDecompressor();
@@ -135,12 +139,12 @@ public class CompressorPool extends CompressorFactory {
     try {
       compressorPool.close();
     } catch (Exception e) {
-      LOG.error(e);
+      LOG.error("Error while closing compressor pool. Error message {}",e.getMessage(),e);
     }
     try {
       decompressorPool.close();
     } catch (Exception e) {
-      LOG.error(e);
+      LOG.error("Error while closing decompressor pool. Error message {}",e.getMessage(),e);
     }
 
   }

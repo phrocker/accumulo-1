@@ -27,9 +27,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorObjectFactory;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorPool;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.Compressor;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -230,6 +235,70 @@ public class CompressionTest {
         results.addAll(service.invokeAll(list));
         // ensure that we
         Assert.assertEquals(al + " created too many codecs", 1, testSet.size());
+        service.shutdown();
+
+        while (!service.awaitTermination(1, TimeUnit.SECONDS)) {
+          // wait
+        }
+
+        for (Future<Boolean> result : results) {
+          Assert.assertTrue(al + " resulted in a failed call to getcodec within the thread pool", result.get());
+        }
+      }
+    }
+  }
+
+  @Test(timeout = 60 * 1000)
+  public void testChangeFactory() throws IOException, InterruptedException, ExecutionException {
+
+    CompressorFactory factory = new CompressorFactory(DefaultConfiguration.getDefaultConfiguration());
+    for (final Algorithm al : Algorithm.values()) {
+      if (isSupported.get(al) != null && isSupported.get(al) == true) {
+
+        // first call to issupported should be true
+        Assert.assertTrue(al + " is not supported, but should be", al.isSupported());
+
+        ExecutorService service = Executors.newFixedThreadPool(20);
+
+        ArrayList<Callable<Boolean>> list = new ArrayList<>();
+
+        ArrayList<Future<Boolean>> results = new ArrayList<>();
+
+        final ArrayList<Compressor> compressors = new ArrayList<>();
+
+        for (int i = 0; i < 40; i++) {
+          list.add(new Callable<Boolean>() {
+
+            @Override
+            public Boolean call() throws Exception {
+              Compressor newCompressor = al.getCompressor();
+              Assert.assertNotNull(al + " resulted in a non-null compressor", newCompressor);
+              synchronized (compressors) {
+                compressors.add(newCompressor);
+              }
+              return true;
+            }
+          });
+        }
+
+        service.invokeAll(list);
+        
+        Assert.assertEquals("Should have 40 compressors", 40, compressors.size());
+
+        factory = new CompressorPool(DefaultConfiguration.getDefaultConfiguration());
+
+        Compression.setCompressionFactory(factory);
+
+        for (Compressor compressor : compressors) {
+          al.returnCompressor(compressor);
+        }
+
+        for (Compressor compressor : compressors) {
+          Assert.assertTrue(compressor.finished());
+        }
+
+        results.addAll(service.invokeAll(list));
+        // ensure that we
         service.shutdown();
 
         while (!service.awaitTermination(1, TimeUnit.SECONDS)) {
