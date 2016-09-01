@@ -252,6 +252,7 @@ public class CompressionTest {
   public void testChangeFactory() throws IOException, InterruptedException, ExecutionException {
 
     CompressorFactory factory = new CompressorFactory(DefaultConfiguration.getDefaultConfiguration());
+    final byte[] testBytes = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
     for (final Algorithm al : Algorithm.values()) {
       if (isSupported.get(al) != null && isSupported.get(al) == true) {
 
@@ -266,13 +267,15 @@ public class CompressionTest {
 
         final ArrayList<Compressor> compressors = new ArrayList<>();
 
-        for (int i = 0; i < 40; i++) {
+        for (int i = 0; i < 42; i++) {
           list.add(new Callable<Boolean>() {
 
             @Override
             public Boolean call() throws Exception {
               Compressor newCompressor = al.getCompressor();
               Assert.assertNotNull(al + " resulted in a non-null compressor", newCompressor);
+              newCompressor.compress(testBytes, 0, testBytes.length);
+              Assert.assertEquals(testBytes.length, newCompressor.getBytesWritten());
               synchronized (compressors) {
                 compressors.add(newCompressor);
               }
@@ -283,21 +286,6 @@ public class CompressionTest {
 
         service.invokeAll(list);
         
-        Assert.assertEquals("Should have 40 compressors", 40, compressors.size());
-
-        factory = new CompressorPool(DefaultConfiguration.getDefaultConfiguration());
-
-        Compression.setCompressionFactory(factory);
-
-        for (Compressor compressor : compressors) {
-          al.returnCompressor(compressor);
-        }
-
-        for (Compressor compressor : compressors) {
-          Assert.assertTrue(compressor.finished());
-        }
-
-        results.addAll(service.invokeAll(list));
         // ensure that we
         service.shutdown();
 
@@ -308,8 +296,24 @@ public class CompressionTest {
         for (Future<Boolean> result : results) {
           Assert.assertTrue(al + " resulted in a failed call to getcodec within the thread pool", result.get());
         }
+
+        Assert.assertEquals("Should have 42 compressors", 42, compressors.size());
+
+        factory = new CompressorPool(DefaultConfiguration.getDefaultConfiguration());
+
+        Compression.setCompressionFactory(factory);
+
+        for (Compressor compressor : compressors) {
+          al.returnCompressor(compressor);
+        }
+
+        for (Compressor compressor : compressors) {
+          Assert.assertEquals(0, compressor.getBytesWritten());
+        }
+
+        results.addAll(service.invokeAll(list));
+        
       }
     }
   }
-
 }
