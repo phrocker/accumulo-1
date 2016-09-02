@@ -22,20 +22,16 @@ import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
 import org.apache.hadoop.io.compress.Compressor;
 import org.apache.hadoop.io.compress.Decompressor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Preconditions;
 
 /**
- * Compressor Factory is a base class which creates compressors based on the supplied algorithm. Extensions may allow for alternative factory methods, such as
- * object pooling.
+ * Compressor Factory is an abstract class which creates compressors based on the supplied algorithm. Extensions may allow for alternative factory methods, such
+ * as object pooling.
  */
-public class CompressorFactory {
+public abstract class CompressorFactory {
 
-  private static final Logger LOG = LoggerFactory.getLogger(CompressorFactory.class);
-
-  public CompressorFactory(AccumuloConfiguration acuConf) {}
+  public CompressorFactory(AccumuloConfiguration acuConf) {
+    initialize(acuConf);
+  }
 
   /**
    * Provides the caller a compressor object.
@@ -46,35 +42,19 @@ public class CompressorFactory {
    * @throws IOException
    *           I/O Exception during factory implementation
    */
-  public Compressor getCompressor(Algorithm compressionAlgorithm) throws IOException {
-    if (compressionAlgorithm != null) {
-      Compressor compressor = compressionAlgorithm.getCodec().createCompressor();
-      if (compressor != null) {
-
-        LOG.debug("Got a decompressor: {}", compressor.hashCode());
-
-      }
-      return compressor;
-    }
-    return null;
-  }
+  public abstract Compressor getCompressor(Algorithm compressionAlgorithm) throws IOException;
 
   /**
    * Method to release a compressor. This implementation will call end on the compressor.
    * 
-   * Implementations that 
+   * Implementations that
    *
    * @param algorithm
    *          Supplied compressor's Algorithm.
    * @param compressor
    *          Compressor object
    */
-  public boolean releaseCompressor(Algorithm algorithm, Compressor compressor) {
-    Preconditions.checkNotNull(algorithm, "Algorithm cannot be null");
-    Preconditions.checkNotNull(compressor, "Compressor should not be null");
-    compressor.end();
-    return true;
-  }
+  public abstract boolean releaseCompressor(Algorithm algorithm, Compressor compressor);
 
   /**
    * Method to release the decompressor. This implementation will call end on the decompressor.
@@ -84,12 +64,7 @@ public class CompressorFactory {
    * @param decompressor
    *          decompressor object.
    */
-  public boolean releaseDecompressor(Algorithm algorithm, Decompressor decompressor) {
-    Preconditions.checkNotNull(algorithm, "Algorithm cannot be null");
-    Preconditions.checkNotNull(decompressor, "Deompressor should not be null");
-    decompressor.end();
-    return true;
-  }
+  public abstract boolean releaseDecompressor(Algorithm algorithm, Decompressor decompressor);
 
   /**
    * Provides the caller a decompressor object.
@@ -98,24 +73,21 @@ public class CompressorFactory {
    *          decompressor's algorithm.
    * @return decompressor.
    */
-  public Decompressor getDecompressor(Algorithm compressionAlgorithm) {
-    if (compressionAlgorithm != null) {
-      Decompressor decompressor = compressionAlgorithm.getCodec().createDecompressor();
-      if (decompressor != null) {
-
-        LOG.debug("Got a decompressor: {}", decompressor.hashCode());
-
-      }
-      return decompressor;
-    }
-    return null;
-  }
+  public abstract Decompressor getDecompressor(Algorithm compressionAlgorithm) throws IOException;
 
   /**
    * Implementations may choose to have a close call implemented.
    */
-  public void close() {
+  public abstract void close();
 
+  /**
+   * Initializes the pool
+   * 
+   * @param acuConf
+   *          accumulo configuration
+   */
+  protected void initialize(final AccumuloConfiguration acuConf) {
+    // no initialization necessary
   }
 
   /**

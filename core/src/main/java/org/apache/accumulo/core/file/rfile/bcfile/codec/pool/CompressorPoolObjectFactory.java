@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.accumulo.core.file.rfile.bcfile.codec;
+package org.apache.accumulo.core.file.rfile.bcfile.codec.pool;
 
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
 import org.apache.commons.pool2.KeyedPooledObjectFactory;
@@ -26,7 +26,7 @@ import org.apache.hadoop.io.compress.Compressor;
  * Factory pattern used to create compressors within CompressorPool
  *
  */
-public class CompressorObjectFactory implements KeyedPooledObjectFactory<Algorithm,Compressor> {
+public class CompressorPoolObjectFactory implements KeyedPooledObjectFactory<Algorithm,Compressor> {
 
   @Override
   public PooledObject<Compressor> makeObject(Algorithm key) throws Exception {

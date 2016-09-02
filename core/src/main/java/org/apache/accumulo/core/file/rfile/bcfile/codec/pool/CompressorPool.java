@@ -14,13 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.accumulo.core.file.rfile.bcfile.codec;
+package org.apache.accumulo.core.file.rfile.bcfile.codec.pool;
 
 import java.io.IOException;
 
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.apache.hadoop.io.compress.Compressor;
 import org.apache.hadoop.io.compress.Decompressor;
@@ -36,7 +37,7 @@ import com.google.common.base.Preconditions;
  */
 public class CompressorPool extends CompressorFactory {
 
-  private static final Logger LOG = LoggerFactory.getLogger(CompressorObjectFactory.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CompressorPool.class);
 
   /**
    * Compressor pool.
@@ -48,23 +49,41 @@ public class CompressorPool extends CompressorFactory {
    */
   GenericKeyedObjectPool<Algorithm,Decompressor> decompressorPool;
 
+  /**
+   * Compressor pool constructor
+   * 
+   * @param acuConf
+   *          accumulo configuration
+   */
   public CompressorPool(AccumuloConfiguration acuConf) {
 
     super(acuConf);
-
-    compressorPool = new GenericKeyedObjectPool<Algorithm,Compressor>(new CompressorObjectFactory());
-    // ensure that the pool grows when needed
-    compressorPool.setBlockWhenExhausted(false);
-
-    decompressorPool = new GenericKeyedObjectPool<Algorithm,Decompressor>(new DecompressorObjectFactory());
-    // ensure that the pool grows when needed.
-    decompressorPool.setBlockWhenExhausted(false);
-
-    // perform the initial update.
-    update(acuConf);
-
   }
 
+  @Override
+  protected void initialize(AccumuloConfiguration acuConf) {
+    compressorPool = new GenericKeyedObjectPool<Algorithm,Compressor>(new CompressorPoolObjectFactory());
+    // ensure that the pool grows when needed
+    compressorPool.setBlockWhenExhausted(false);
+    compressorPool.setMaxTotal(-1);
+    compressorPool.setMaxTotalPerKey(-1);
+
+    decompressorPool = new GenericKeyedObjectPool<Algorithm,Decompressor>(new DecompressorPoolObjectFactory());
+    // ensure that the pool grows when needed.
+    decompressorPool.setBlockWhenExhausted(false);
+    decompressorPool.setMaxTotal(-1);
+    decompressorPool.setMaxTotalPerKey(-1);
+
+    // perform the initial update
+    update(acuConf);
+  }
+
+  /**
+   * Set the max idle time for the pool. This is the maximum idle objects that we will allow in the respective pool.
+   * 
+   * @param size
+   *          max size
+   */
   public void setMaxIdle(final int size) {
     // check that we are changing the value.
     // this will avoid synchronization within the pool
@@ -111,7 +130,7 @@ public class CompressorPool extends CompressorFactory {
       decompressorPool.returnObject(compressionAlgorithm, decompressor);
       return true;
     } catch (Exception e) {
-      LOG.warn("Could not return decompressor. Closing instead. Error message {}",e.getMessage(), e);
+      LOG.warn("Could not return decompressor. Closing instead. Error message {}", e.getMessage(), e);
       decompressor.end();
       return true;
     }
@@ -139,12 +158,12 @@ public class CompressorPool extends CompressorFactory {
     try {
       compressorPool.close();
     } catch (Exception e) {
-      LOG.error("Error while closing compressor pool. Error message {}",e.getMessage(),e);
+      LOG.error("Error while closing compressor pool. Error message {}", e.getMessage(), e);
     }
     try {
       decompressorPool.close();
     } catch (Exception e) {
-      LOG.error("Error while closing decompressor pool. Error message {}",e.getMessage(),e);
+      LOG.error("Error while closing decompressor pool. Error message {}", e.getMessage(), e);
     }
 
   }

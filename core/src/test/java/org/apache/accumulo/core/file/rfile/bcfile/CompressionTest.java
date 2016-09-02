@@ -16,7 +16,11 @@
  */
 package org.apache.accumulo.core.file.rfile.bcfile;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,11 +34,13 @@ import java.util.concurrent.TimeUnit;
 import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
 import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory;
-import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorObjectFactory;
-import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorPool;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.NonPooledFactory;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.pool.CodecPoolImpl;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.pool.CompressorPool;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.Compressor;
+import org.apache.hadoop.io.compress.Decompressor;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -43,6 +49,19 @@ import org.junit.Test;
 public class CompressionTest {
 
   HashMap<Compression.Algorithm,Boolean> isSupported = new HashMap<>();
+
+  private boolean isSupported(Algorithm al) {
+    if (isSupported.get(al) != null && isSupported.get(al) == true) {
+      return true;
+    }
+    return false;
+  }
+
+  public boolean isWithin(double pct, long x, long y) {
+    double res =(((double)Math.abs(x - y) / (double)x) * 100); 
+    System.out.println(res);
+    return res <= pct;
+  }
 
   @Before
   public void testSupport() {
@@ -70,10 +89,14 @@ public class CompressionTest {
 
       Assert.assertNotNull(codec);
 
+      Compression.Algorithm.SNAPPY.getCompressor();
+
       isSupported.put(Compression.Algorithm.SNAPPY, true);
 
-    } catch (ClassNotFoundException e) {
-      // that is okay
+    } catch (UnsatisfiedLinkError error) {
+      // caused because the native libs aren't supported
+    } catch (Exception e) {
+      // not supported on this box
     }
 
   }
@@ -82,7 +105,7 @@ public class CompressionTest {
   public void testSingle() throws IOException {
 
     for (final Algorithm al : Algorithm.values()) {
-      if (isSupported.get(al) != null && isSupported.get(al) == true) {
+      if (isSupported(al)) {
 
         // first call to issupported should be true
         Assert.assertTrue(al + " is not supported, but should be", al.isSupported());
@@ -98,7 +121,7 @@ public class CompressionTest {
   public void testSingleNoSideEffect() throws IOException {
 
     for (final Algorithm al : Algorithm.values()) {
-      if (isSupported.get(al) != null && isSupported.get(al) == true) {
+      if (isSupported(al)) {
 
         Assert.assertTrue(al + " is not supported, but should be", al.isSupported());
 
@@ -116,7 +139,7 @@ public class CompressionTest {
   public void testManyStartNotNull() throws IOException, InterruptedException, ExecutionException {
 
     for (final Algorithm al : Algorithm.values()) {
-      if (isSupported.get(al) != null && isSupported.get(al) == true) {
+      if (isSupported(al)) {
 
         // first call to issupported should be true
         Assert.assertTrue(al + " is not supported, but should be", al.isSupported());
@@ -162,7 +185,7 @@ public class CompressionTest {
   public void testManyDontStartUntilThread() throws IOException, InterruptedException, ExecutionException {
 
     for (final Algorithm al : Algorithm.values()) {
-      if (isSupported.get(al) != null && isSupported.get(al) == true) {
+      if (isSupported(al)) {
 
         // first call to issupported should be true
         Assert.assertTrue(al + " is not supported, but should be", al.isSupported());
@@ -202,7 +225,7 @@ public class CompressionTest {
   public void testThereCanBeOnlyOne() throws IOException, InterruptedException, ExecutionException {
 
     for (final Algorithm al : Algorithm.values()) {
-      if (isSupported.get(al) != null && isSupported.get(al) == true) {
+      if (isSupported(al)) {
 
         // first call to issupported should be true
         Assert.assertTrue(al + " is not supported, but should be", al.isSupported());
@@ -251,10 +274,10 @@ public class CompressionTest {
   @Test(timeout = 60 * 1000)
   public void testChangeFactory() throws IOException, InterruptedException, ExecutionException {
 
-    CompressorFactory factory = new CompressorFactory(DefaultConfiguration.getDefaultConfiguration());
+    CompressorFactory factory = new NonPooledFactory(DefaultConfiguration.getDefaultConfiguration());
     final byte[] testBytes = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
     for (final Algorithm al : Algorithm.values()) {
-      if (isSupported.get(al) != null && isSupported.get(al) == true) {
+      if (isSupported(al)) {
 
         // first call to issupported should be true
         Assert.assertTrue(al + " is not supported, but should be", al.isSupported());
@@ -274,8 +297,8 @@ public class CompressionTest {
             public Boolean call() throws Exception {
               Compressor newCompressor = al.getCompressor();
               Assert.assertNotNull(al + " resulted in a non-null compressor", newCompressor);
-              newCompressor.compress(testBytes, 0, testBytes.length);
-              Assert.assertEquals(testBytes.length, newCompressor.getBytesWritten());
+              int compressed = newCompressor.compress(testBytes, 0, testBytes.length);
+              Assert.assertEquals(compressed, newCompressor.getBytesWritten());
               synchronized (compressors) {
                 compressors.add(newCompressor);
               }
@@ -284,8 +307,8 @@ public class CompressionTest {
           });
         }
 
-        service.invokeAll(list);
-        
+        results.addAll(service.invokeAll(list));
+
         // ensure that we
         service.shutdown();
 
@@ -307,13 +330,93 @@ public class CompressionTest {
           al.returnCompressor(compressor);
         }
 
+        /**
+         * Since we've changed pools we should get an exceptions that the deflator is closed
+         */
         for (Compressor compressor : compressors) {
-          Assert.assertEquals(0, compressor.getBytesWritten());
+          try {
+            compressor.getBytesWritten();
+            Assert.fail("Expected an error when trying to access closed compressor");
+          } catch (NullPointerException npe) {
+
+          }
         }
 
-        results.addAll(service.invokeAll(list));
-        
       }
     }
+  }
+
+  /**
+   * Test to show that changing the output buffer size has a dramatic impact.
+   * 
+   * Calling Compression.setDataOutputBufferSize(0); causes us to use a buffer size equal to the input argument.
+   * 
+   * @throws IOException
+   *           Error during compression or decompression.
+   */
+  @Test
+  public void testCompareCompressionSizes() throws IOException {
+    int downStreamSize = 64 * 1024;
+    StringBuilder builder = new StringBuilder();
+    do {
+      builder.append("DEADBEEF");
+    } while (builder.length() < downStreamSize);
+
+    final byte[] beefArray = builder.toString().getBytes();
+    final byte[] testArray = new byte[beefArray.length];
+    long ts = 0;
+    long decomCounter = 0;
+
+    long decomCounterChange = 0;
+
+    Compression.setDataOutputBufferSize(1 * 1024);
+
+    for (final Algorithm al : Algorithm.values()) {
+      if (isSupported(al)) {
+        for (int i = 0; i < 500; i++) {
+          ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+          Compressor compressor = al.getCompressor();
+          Decompressor decom = al.getDecompressor();
+          OutputStream outStream = al.createCompressionStream(outputStream, compressor, downStreamSize);
+          outStream.write(beefArray);
+          outStream.close();
+
+          ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
+          ts = System.currentTimeMillis();
+          InputStream inStream = al.createDecompressionStream(inputStream, decom, downStreamSize);
+          inStream.read(testArray);
+          inStream.close();
+          decomCounter += System.currentTimeMillis() - ts;
+          Assert.assertArrayEquals(testArray, beefArray);
+
+        }
+        // using downStreamSize as the buffer size
+        Compression.setDataOutputBufferSize(0);
+
+        for (int i = 0; i < 500; i++) {
+          ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+          Compressor compressor = al.getCompressor();
+          Decompressor decom = al.getDecompressor();
+          OutputStream outStream = al.createCompressionStream(outputStream, compressor, downStreamSize);
+          outStream.write(beefArray);
+          outStream.close();
+
+          ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
+          ts = System.currentTimeMillis();
+          InputStream inStream = al.createDecompressionStream(inputStream, decom, downStreamSize);
+          inStream.read(testArray);
+          inStream.close();
+          decomCounterChange += System.currentTimeMillis() - ts;
+          // ensure the arrays are equal, otherwise we should fail the test.
+          Assert.assertArrayEquals(testArray, beefArray);
+
+        }
+
+        Assert.assertTrue(decomCounterChange < decomCounter);
+      }
+    }
+
   }
 }

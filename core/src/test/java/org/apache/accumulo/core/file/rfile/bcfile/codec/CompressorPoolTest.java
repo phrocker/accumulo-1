@@ -27,6 +27,7 @@ import java.util.Set;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.pool.CompressorPool;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.Compressor;
@@ -214,7 +215,7 @@ public class CompressorPoolTest {
           // stop about half way through and change the pool
           if (i == 12) {
             factory.close();
-            factory = new CompressorFactory(AccumuloConfiguration.getDefaultConfiguration());
+            factory = new NonPooledFactory(AccumuloConfiguration.getDefaultConfiguration());
           }
         }
 

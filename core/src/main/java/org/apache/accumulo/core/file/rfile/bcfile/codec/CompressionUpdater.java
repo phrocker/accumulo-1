@@ -19,7 +19,8 @@ package org.apache.accumulo.core.file.rfile.bcfile.codec;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Runnable that will be used to update the compression class.
@@ -27,7 +28,7 @@ import org.apache.log4j.Logger;
  */
 public class CompressionUpdater implements Runnable {
 
-  private static final Logger LOG = Logger.getLogger(CompressorFactory.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CompressionUpdater.class);
   /**
    * Compressor factory class
    */
@@ -42,7 +43,7 @@ public class CompressionUpdater implements Runnable {
 
   public CompressionUpdater(AccumuloConfiguration acuConf) {
     this.acuConf = acuConf;
-    currentInstance = new CompressorFactory(acuConf);
+    currentInstance = new NonPooledFactory(acuConf);
     Compression.setCompressionFactory(currentInstance);
   }
 
@@ -54,17 +55,17 @@ public class CompressionUpdater implements Runnable {
       try {
         tempFactory = Class.forName(compressorClass).asSubclass(CompressorFactory.class);
       } catch (ClassNotFoundException cfe) {
-        LOG.warn("Could not find class " + compressorClass + " so not setting desired CompressorFactory");
+        LOG.warn("Could not find class {}  so not setting desired CompressorFactory", compressorClass);
         // do nothing
         return;
       }
-      LOG.info("Setting compressor factory to " + tempFactory);
+      LOG.info("Setting compressor factory to {}", tempFactory);
       try {
         Compression.setCompressionFactory(tempFactory.getConstructor(AccumuloConfiguration.class).newInstance(acuConf));
         compressorFactoryClazz = tempFactory;
       } catch (Exception e) {
         LOG.error("Could not set compressor factory to " + compressorFactoryClazz + " defaulting to CompressorFactory", e);
-        Compression.setCompressionFactory(new CompressorFactory(acuConf));
+        Compression.setCompressionFactory(new NonPooledFactory(acuConf));
       }
     } else {
       currentInstance.update(acuConf);

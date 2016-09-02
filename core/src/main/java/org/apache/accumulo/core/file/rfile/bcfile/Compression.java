@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.NonPooledFactory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -572,9 +573,14 @@ public final class Compression {
   }
 
   /**
-   * Default implementation will create new compressors. 
+   * Default implementation will create new compressors.
    */
-  private static AtomicReference<CompressorFactory> compressorFactory = new AtomicReference<>(new CompressorFactory(null));
+  private static AtomicReference<CompressorFactory> compressorFactory = new AtomicReference<>();
+
+  static {
+    // begin with a default factory implementation
+    compressorFactory.set(new NonPooledFactory(null));
+  }
 
   /**
    * Allow the compressor factory to be set within this Instance.
