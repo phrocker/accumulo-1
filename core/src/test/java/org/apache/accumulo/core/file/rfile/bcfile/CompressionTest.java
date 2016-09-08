@@ -35,7 +35,6 @@ import org.apache.accumulo.core.conf.DefaultConfiguration;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
 import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory;
 import org.apache.accumulo.core.file.rfile.bcfile.codec.NonPooledFactory;
-import org.apache.accumulo.core.file.rfile.bcfile.codec.pool.CodecPoolImpl;
 import org.apache.accumulo.core.file.rfile.bcfile.codec.pool.CompressorPool;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.compress.CompressionCodec;
@@ -58,7 +57,7 @@ public class CompressionTest {
   }
 
   public boolean isWithin(double pct, long x, long y) {
-    double res =(((double)Math.abs(x - y) / (double)x) * 100); 
+    double res = (((double) Math.abs(x - y) / (double) x) * 100);
     System.out.println(res);
     return res <= pct;
   }
@@ -348,9 +347,9 @@ public class CompressionTest {
 
   /**
    * Test to show that changing the output buffer size has a dramatic impact.
-   * 
-   * Calling Compression.setDataOutputBufferSize(0); causes us to use a buffer size equal to the input argument.
-   * 
+   *
+   * Calling Compression.setDataOutputBufferSize(0) causes us to use a buffer size equal to the input argument.
+   *
    * @throws IOException
    *           Error during compression or decompression.
    */
@@ -370,7 +369,7 @@ public class CompressionTest {
     long decomCounterChange = 0;
 
     Compression.setDataOutputBufferSize(1 * 1024);
-
+    InputStream inStream = null;
     for (final Algorithm al : Algorithm.values()) {
       if (isSupported(al)) {
         for (int i = 0; i < 500; i++) {
@@ -384,8 +383,8 @@ public class CompressionTest {
 
           ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
           ts = System.currentTimeMillis();
-          InputStream inStream = al.createDecompressionStream(inputStream, decom, downStreamSize);
-          inStream.read(testArray);
+          inStream = al.createDecompressionStream(inputStream, decom, downStreamSize);
+          Assert.assertTrue(inStream.read(testArray) == beefArray.length);
           inStream.close();
           decomCounter += System.currentTimeMillis() - ts;
           Assert.assertArrayEquals(testArray, beefArray);
@@ -405,8 +404,8 @@ public class CompressionTest {
 
           ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
           ts = System.currentTimeMillis();
-          InputStream inStream = al.createDecompressionStream(inputStream, decom, downStreamSize);
-          inStream.read(testArray);
+          inStream = al.createDecompressionStream(inputStream, decom, downStreamSize);
+          Assert.assertTrue(inStream.read(testArray) == beefArray.length);
           inStream.close();
           decomCounterChange += System.currentTimeMillis() - ts;
           // ensure the arrays are equal, otherwise we should fail the test.

@@ -51,7 +51,7 @@ public class CompressorPool extends CompressorFactory {
 
   /**
    * Compressor pool constructor
-   * 
+   *
    * @param acuConf
    *          accumulo configuration
    */
@@ -80,7 +80,7 @@ public class CompressorPool extends CompressorFactory {
 
   /**
    * Set the max idle time for the pool. This is the maximum idle objects that we will allow in the respective pool.
-   * 
+   *
    * @param size
    *          max size
    */

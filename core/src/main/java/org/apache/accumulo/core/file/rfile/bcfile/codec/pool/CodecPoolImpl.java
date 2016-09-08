@@ -19,7 +19,6 @@ package org.apache.accumulo.core.file.rfile.bcfile.codec.pool;
 import java.io.IOException;
 
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
-import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.file.rfile.bcfile.Compression.Algorithm;
 import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory;
 import org.apache.hadoop.io.compress.CodecPool;
@@ -40,7 +39,7 @@ public class CodecPoolImpl extends CompressorFactory {
 
   /**
    * Compressor pool constructor
-   * 
+   *
    * @param acuConf
    *          accumulo configuration
    */
@@ -57,7 +56,7 @@ public class CodecPoolImpl extends CompressorFactory {
       if (compressor.finished()) {
         LOG.warn("Compressor obtained from CodecPool already finished()");
       } else {
-        LOG.warn("Got a compressor: {}", compressor.hashCode());
+      //  LOG.warn("Got a compressor: {}", compressor.hashCode());
       }
 
       compressor.reset();
@@ -91,7 +90,7 @@ public class CodecPoolImpl extends CompressorFactory {
       if (decompressor.finished()) {
         LOG.warn("Decompressor obtained from CodecPool already finished()");
       } else {
-        LOG.warn("Got a decompressor: {}", decompressor.hashCode());
+       // LOG.warn("Got a decompressor: {}", decompressor.hashCode());
       }
 
       decompressor.reset();
@@ -101,8 +100,7 @@ public class CodecPoolImpl extends CompressorFactory {
 
   @Override
   public void close() {
-    // no state needed. 
+    // no state needed.
 
   }
-
 }

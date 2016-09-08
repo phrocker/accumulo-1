@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.accumulo.core.file.rfile.bcfile.codec.CompressorFactory;
 import org.apache.accumulo.core.file.rfile.bcfile.codec.NonPooledFactory;
+import org.apache.accumulo.core.file.rfile.bcfile.codec.pool.CodecPoolImpl;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -516,7 +517,7 @@ public final class Compression {
 
     /**
      * Requests a compressor from the current compressor factory.
-     * 
+     *
      * @return new compressor.
      * @throws IOException
      *           Exception occurred within the method to obtain a compressor.
@@ -528,7 +529,7 @@ public final class Compression {
     /**
      * Returns the compressor. The call to releaseCompressor will return a status of whether or not the factory could close or return the compressor. If that
      * status is false, we will manually call end on the compressor.
-     * 
+     *
      * @param compressor
      *          compressor to return.
      */
@@ -540,7 +541,7 @@ public final class Compression {
 
     /**
      * Requests a decompressor from the current compressor factory.
-     * 
+     *
      * @return new de compressor.
      * @throws IOException
      *           Exception occurred within the method to obtain a decompressor.
@@ -552,7 +553,7 @@ public final class Compression {
     /**
      * Returns the de compressor. The call to releaseDeCompressor will return a status of whether or not the factory could close or return the decompressor. If
      * that status is false, we will manually call end on the decompressor.
-     * 
+     *
      * @param decompressor
      *          decompressor to return.
      */
@@ -564,7 +565,7 @@ public final class Compression {
 
     /**
      * Getter for the compressor name.
-     * 
+     *
      * @return compressor name.
      */
     public String getName() {

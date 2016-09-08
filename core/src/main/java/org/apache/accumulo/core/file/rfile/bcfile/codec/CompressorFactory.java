@@ -46,7 +46,7 @@ public abstract class CompressorFactory {
 
   /**
    * Method to release a compressor. This implementation will call end on the compressor.
-   * 
+   *
    * Implementations that
    *
    * @param algorithm
@@ -82,7 +82,7 @@ public abstract class CompressorFactory {
 
   /**
    * Initializes the pool
-   * 
+   *
    * @param acuConf
    *          accumulo configuration
    */
@@ -99,5 +99,4 @@ public abstract class CompressorFactory {
   public void update(final AccumuloConfiguration acuConf) {
 
   }
-
 }

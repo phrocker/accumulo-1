@@ -62,12 +62,13 @@ class BoundedRangeFileInputStream extends InputStream {
 
   @Override
   public int available() throws IOException {
-    int avail = in.available();
-    if (pos + avail > end) {
-      avail = (int) (end - pos);
-    }
+  //  int avail = in.available();
+   // if (pos + avail > end) {
+      //avail = (int) (end - pos);
+  //  }
 
-    return avail;
+    return   (int) (end - pos);
+    //return avail;
   }
 
   @Override
