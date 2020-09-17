@@ -177,6 +177,7 @@ public class Tablet {
   private volatile CloseState closeState = CloseState.OPEN;
 
   private boolean updatingFlushID = false;
+  private boolean nativeCompaction = false;
 
   private long lastFlushID = -1;
   private long lastCompactID = -1;
@@ -415,6 +416,8 @@ public class Tablet {
       // TODO this could hang, causing other tablets to fail to load - ACCUMULO-1292
       AccumuloVFSClassLoader.getContextManager().getClassLoader(contextName);
     }
+
+    nativeCompaction = tableConfiguration.getBoolean(Property.TABLE_MAJC_NATIVE);
 
     // do this last after tablet is completely setup because it
     // could cause major compaction to start
@@ -2237,5 +2240,9 @@ public class Tablet {
 
   public Compactable asCompactable() {
     return compactable;
+  }
+
+  public boolean supportsNativeCompactions() {
+    return nativeCompaction;
   }
 }

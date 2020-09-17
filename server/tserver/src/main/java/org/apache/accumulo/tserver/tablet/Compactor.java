@@ -90,36 +90,36 @@ public class Compactor implements Callable<CompactionStats> {
     RateLimiter getWriteLimiter();
   }
 
-  private final Map<StoredTabletFile,DataFileValue> filesToCompact;
-  private final InMemoryMap imm;
-  private final TabletFile outputFile;
-  private final boolean propogateDeletes;
-  private final AccumuloConfiguration acuTableConf;
-  private final CompactionEnv env;
-  private final VolumeManager fs;
+  protected final Map<StoredTabletFile,DataFileValue> filesToCompact;
+  protected final InMemoryMap imm;
+  protected final TabletFile outputFile;
+  protected final boolean propogateDeletes;
+  protected final AccumuloConfiguration acuTableConf;
+  protected final CompactionEnv env;
+  protected final VolumeManager fs;
   protected final KeyExtent extent;
-  private final List<IteratorSetting> iterators;
+  protected final List<IteratorSetting> iterators;
 
   // things to report
-  private String currentLocalityGroup = "";
-  private final long startTime;
+  protected String currentLocalityGroup = "";
+  protected final long startTime;
 
-  private int reason;
+  protected int reason;
 
-  private final AtomicLong entriesRead = new AtomicLong(0);
-  private final AtomicLong entriesWritten = new AtomicLong(0);
-  private final DateFormat dateFormatter = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS");
+  protected final AtomicLong entriesRead = new AtomicLong(0);
+  protected final AtomicLong entriesWritten = new AtomicLong(0);
+  protected final DateFormat dateFormatter = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS");
 
   // a unique id to identify a compactor
-  private final long compactorID = nextCompactorID.getAndIncrement();
+  protected final long compactorID = nextCompactorID.getAndIncrement();
   protected volatile Thread thread;
-  private final ServerContext context;
+  protected final ServerContext context;
 
   public long getCompactorID() {
     return compactorID;
   }
 
-  private synchronized void setLocalityGroup(String name) {
+  protected synchronized void setLocalityGroup(String name) {
     this.currentLocalityGroup = name;
   }
 
@@ -127,7 +127,7 @@ public class Compactor implements Callable<CompactionStats> {
     return currentLocalityGroup;
   }
 
-  private void clearStats() {
+  protected void clearStats() {
     entriesRead.set(0);
     entriesWritten.set(0);
   }
@@ -282,7 +282,7 @@ public class Compactor implements Callable<CompactionStats> {
     }
   }
 
-  private List<SortedKeyValueIterator<Key,Value>>
+  protected List<SortedKeyValueIterator<Key,Value>>
       openMapDataFiles(ArrayList<FileSKVIterator> readers) throws IOException {
 
     List<SortedKeyValueIterator<Key,Value>> iters = new ArrayList<>(filesToCompact.size());

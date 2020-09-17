@@ -675,6 +675,8 @@ public enum Property {
   TABLE_MAJC_RATIO("table.compaction.major.ratio", "3", PropertyType.FRACTION,
       "Minimum ratio of total input size to maximum input RFile size for"
           + " running a major compaction. "),
+  TABLE_MAJC_NATIVE("table.compaction.major.native", "false", PropertyType.BOOLEAN,
+      "If true compactions will be deferred to native code to compact tablets"),
   @Deprecated(since = "2.1.0", forRemoval = true)
   TABLE_MAJC_COMPACTALL_IDLETIME("table.compaction.major.everything.idle", "1h",
       PropertyType.TIMEDURATION,

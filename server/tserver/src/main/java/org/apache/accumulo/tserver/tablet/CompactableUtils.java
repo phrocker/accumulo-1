@@ -567,8 +567,11 @@ public class CompactableUtils {
     TabletFile newFile = tablet.getNextMapFilename(!propogateDeletes ? "A" : "C");
     TabletFile compactTmpName = new TabletFile(new Path(newFile.getMetaInsert() + "_tmp"));
 
-    Compactor compactor = new Compactor(tablet.getContext(), tablet, compactFiles, null,
-        compactTmpName, propogateDeletes, cenv, iters, reason, tableConfig);
+    Compactor compactor = tablet.supportsNativeCompactions()
+        ? new NativeCompactor(tablet.getContext(), tablet, compactFiles, null, compactTmpName,
+            propogateDeletes, cenv, iters, reason, tableConfig)
+        : new Compactor(tablet.getContext(), tablet, compactFiles, null, compactTmpName,
+            propogateDeletes, cenv, iters, reason, tableConfig);
 
     var mcs = compactor.call();
 

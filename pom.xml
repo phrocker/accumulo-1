@@ -91,7 +91,7 @@
     <module>server/manager</module>
     <module>server/master</module>
     <module>server/monitor</module>
-    <module>server/native</module>
+    <!--    <module>server/native</module> -->
     <module>server/tracer</module>
     <module>server/tserver</module>
     <module>shell</module>
